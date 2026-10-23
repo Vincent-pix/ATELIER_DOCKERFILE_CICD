@@ -8,10 +8,23 @@
 # 6. Lancer l'application : python main.py       (CMD)
 
 
+# Image Python 3.12 légère
 FROM python:3.12-slim
+
+# Dossier de travail
 WORKDIR /app
-# Installe tout en root, conserve cache apt/pip
-COPY . /app
-RUN pip install -r requirements.txt
+
+# Copier les dépendances
+COPY requirements.txt .
+
+# Installer les dépendances sans conserver le cache pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copier le code de l'application
+COPY main.py .
+
+# Port utilisé par Flask
 EXPOSE 4000
+
+# Démarrer l'application
 CMD ["python", "main.py"]
