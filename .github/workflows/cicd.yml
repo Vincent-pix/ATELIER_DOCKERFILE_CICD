@@ -22,10 +22,21 @@ jobs:
   Tests:
     runs-on: ubuntu-latest
     steps:
-      - name: A compléter
-        run: |
-          echo "Écrire ici les étapes de test de l'application"
+      - name: Récupérer le code
+        uses: actions/checkout@v4
 
+      - name: Installer Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Installer les dépendances
+        run: |
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Lancer les tests
+        run: pytest -v tests/
   # ---------------------------------------------------------------
   # JOB 2 - Livraison continue : construire l'image Docker
   # ---------------------------------------------------------------
@@ -44,9 +55,20 @@ jobs:
     runs-on: ubuntu-latest
     needs: Tests
     steps:
-      - name: A compléter
-        run: |
-          echo "Écrire ici la construction de l'image Docker"
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Construire l'image Docker
+        run: docker build -t $IMAGE_NAME:${{ github.sha }} .
+
+      - name: Exporter l'image Docker
+        run: docker save $IMAGE_NAME:${{ github.sha }} -o image.tar
+
+      - name: Transmettre l'image
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-docker
+          path: image.tar
 
   # ---------------------------------------------------------------
   # JOB 3 - Déploiement continu : simulation de mise en production
@@ -66,6 +88,31 @@ jobs:
     needs: Docker
     environment: production
     steps:
-      - name: A compléter
+      - name: Télécharger l'image Docker
+        uses: actions/download-artifact@v4
+        with:
+          name: image-docker
+
+      - name: Charger l'image Docker
+        run: docker load -i image.tar
+
+      - name: Démarrer le conteneur
+        run: docker run -d --name flask-app -p 4000:4000 $IMAGE_NAME:${{ github.sha }}
+
+      - name: Vérifier l'application
         run: |
-          echo "Écrire ici la simulation de mise en production"
+          for i in {1..10}; do
+            if curl -fsS http://localhost:4000/; then
+              echo "Application accessible !"
+              exit 0
+            fi
+            echo "Attente du démarrage..."
+            sleep 2
+          done
+          docker logs flask-app
+          exit 1
+
+      - name: Résumé du déploiement
+        run: |
+          echo "## Déploiement réussi !" >> $GITHUB_STEP_SUMMARY
+          echo "L'application Flask a été testée, construite et démarrée avec succès." >> $GITHUB_STEP_SUMMARY
